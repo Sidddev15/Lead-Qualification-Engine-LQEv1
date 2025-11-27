@@ -8,7 +8,7 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "types": ["node"],
+    "types": ["node", "react", "react-dom", "next"],
     "baseUrl": ".",
     "paths": {
       "@lqe/types": ["packages/types/src"],
