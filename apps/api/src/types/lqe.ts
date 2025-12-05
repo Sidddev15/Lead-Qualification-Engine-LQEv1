@@ -33,6 +33,7 @@ export interface LQERunLead {
   };
   tier: LeadTier;
   notes: string;
+  reasons: string[];
 }
 
 export interface LQERunResponse {

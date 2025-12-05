@@ -43,6 +43,7 @@ class LQERunLead(BaseModel):
     scores: ScoreBreakdown
     tier: LeadTier
     notes: str
+    reasons: List[str] = []
 
 
 class LQERunResponse(BaseModel):
