@@ -10,6 +10,7 @@ from app.core.models import (
     LQERunLead,
     ScoreBreakdown,
 )
+from app.core.extraction import extract_companies_from_uploads
 
 router = APIRouter()
 
@@ -43,9 +44,20 @@ async def run_pipeline(payload: LQERunRequest) -> LQERunResponse:
             )
         companies = payload.companies
     else:
-        # For now, just stub out an empty list for file-based modes.
-        # Phase 3 will parse uploadContext.files and extract companies.
-        companies = []
+        if not payload.UploadContext:
+            raise HTTPException(
+                status_code=400,
+                detail="Upload Context is required for file-based modes",
+            )
+
+        companies = extract_companies_from_uploads(
+            payload.UploadContext, payload.inputMode
+        )
+
+        if not companies:
+            # not fatal but we signal it thorugh meta and empty leads
+            # caller can decide how to handle this
+            companies = []
 
     leads: List[LQERunLead] = []
 
@@ -84,6 +96,12 @@ async def run_pipeline(payload: LQERunRequest) -> LQERunResponse:
         "inputMode": payload.inputMode,
         "totalCompanies": len(leads),
         "processedAt": datetime.now(timezone.utc).isoformat(),
+        "extraction": {
+            "sourceFiles": (
+                len(payload.UploadContext.files) if payload.UploadContext else 0
+            ),
+            "extractedCompanies": len(companies),
+        },
     }
 
     return LQERunResponse(runId=run_id, leads=leads, meta=meta)

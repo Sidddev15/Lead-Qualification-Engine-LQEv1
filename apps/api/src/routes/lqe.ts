@@ -3,15 +3,25 @@ import multer from "multer";
 import axios from "axios";
 import { env } from "../config/env";
 import type { LQERunRequest, LQERunResponse, InputMode } from "../types/lqe";
+import fs from "fs";
+
+const uploadDir = env.uploadDir;
+
+// ensuring upload directory exists at startup
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => {
-      cb(null, "/tmp/lqe-uploads"); // make this directory in dev
+      cb(null, uploadDir); // make this directory in dev
     },
     filename: (_req, file, cb) => {
       const ts = Date.now();
-      cb(null, `${ts}-${file.originalname}`);
+      // sanitize filename if needed
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+      cb(null, `${ts}-${safeName}`);
     },
   }),
 });
@@ -86,7 +96,7 @@ router.post(
         `${env.lqeWorkerUrl}/pipeline/run`,
         payload,
         {
-          timeout: 20_000,
+          timeout: 60_000,
         }
       );
 

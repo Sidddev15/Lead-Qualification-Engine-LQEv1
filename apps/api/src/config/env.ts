@@ -15,4 +15,5 @@ export const env = {
   port: Number(get("API_PORT", "4000")),
   lqeWorkerUrl: get("LQE_WORKER_URL", "http://localhost:8000"),
   apiKey: get("API_KEY", "dev-secret-key-123"),
+  uploadDir: get("LQE_UPLOAD_DIR", "/tmp/lqe-uploads"),
 };
