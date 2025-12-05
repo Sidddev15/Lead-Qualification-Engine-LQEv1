@@ -1,4 +1,3 @@
-# services/lqe-worker/app/api/pipeline.py
 from fastapi import APIRouter, HTTPException
 from uuid import uuid4
 from datetime import datetime, timezone
@@ -11,11 +10,12 @@ from app.core.models import (
     ScoreBreakdown,
 )
 from app.core.extraction import extract_companies_from_uploads
+from app.core.enrichment.enrich_main import enrich_company
 
 router = APIRouter()
 
 
-def _basic_tier_from_score(score: int) -> str:
+def _tier_from_score(score: int) -> str:
     if score >= 90:
         return "HOT"
     if score >= 70:
@@ -27,64 +27,57 @@ def _basic_tier_from_score(score: int) -> str:
 
 @router.post("/pipeline/run", response_model=LQERunResponse)
 async def run_pipeline(payload: LQERunRequest) -> LQERunResponse:
-    """
-    Phase 2: stub pipeline that only uses manual company list.
-    - Later phases will:
-      * read PDFs/ZIP/Excel
-      * enrich via web/LinkedIn
-      * run real scoring logic
-    """
-
-    companies: List[str] = []
-
     if payload.inputMode == "manual":
         if not payload.companies:
-            raise HTTPException(
-                status_code=400, detail="companies is required for manual mode"
-            )
+            raise HTTPException(400, "companies is required in manual mode")
         companies = payload.companies
     else:
-        if not payload.UploadContext:
-            raise HTTPException(
-                status_code=400,
-                detail="Upload Context is required for file-based modes",
-            )
-
+        if not payload.uploadContext:
+            raise HTTPException(400, "uploadContext missing")
         companies = extract_companies_from_uploads(
-            payload.UploadContext, payload.inputMode
+            payload.uploadContext, payload.inputMode
         )
 
-        if not companies:
-            # not fatal but we signal it thorugh meta and empty leads
-            # caller can decide how to handle this
-            companies = []
+    enriched = []
+    for name in companies:
+        data = enrich_company(name)
+        enriched.append((name, data))
 
     leads: List[LQERunLead] = []
 
-    for name in companies:
-        # Completely dummy scoring for now
-        base_score = 75  # warm by default, replaced later
+    for name, info in enriched:
+        # temporary scoring logic
         scores = ScoreBreakdown(
-            industryRelevance=80,
-            contactQuality=60,
-            companySize=70,
-            webPresence=65,
-            linkedinActivity=50,
-            keywordMatch=80,
-            finalScore=base_score,
+            industryRelevance=info["keywordScore"],
+            contactQuality=50 + len(info["emails"]) * 10,
+            companySize=info["companySizeScore"],
+            webPresence=80 if info["website"] else 30,
+            linkedinActivity=60 if info["linkedin"] else 20,
+            keywordMatch=info["keywordScore"],
+            finalScore=min(
+                100,
+                int(
+                    0.3 * info["keywordScore"]
+                    + 0.2 * (50 + len(info["emails"]) * 10)
+                    + 0.2 * info["companySizeScore"]
+                    + 0.2 * (80 if info["website"] else 30)
+                    + 0.1 * (60 if info["linkedin"] else 20)
+                ),
+            ),
         )
 
-        tier = _basic_tier_from_score(scores.finalScore)
-        notes = f"Stub note for {name}. Real notes will be generated in scoring engine."
+        tier = _tier_from_score(scores.finalScore)
+
+        notes = f"Detected website: {info['website']}. Keyword score={info['keywordScore']}."
 
         leads.append(
             LQERunLead(
                 id=str(uuid4()),
                 companyName=name,
-                website=None,
-                emails=[],
-                phones=[],
-                linkedin=None,
+                website=info["website"],
+                emails=info["emails"],
+                phones=info["phones"],
+                linkedin=info["linkedin"],
                 scores=scores,
                 tier=tier,  # type: ignore
                 notes=notes,
@@ -96,12 +89,6 @@ async def run_pipeline(payload: LQERunRequest) -> LQERunResponse:
         "inputMode": payload.inputMode,
         "totalCompanies": len(leads),
         "processedAt": datetime.now(timezone.utc).isoformat(),
-        "extraction": {
-            "sourceFiles": (
-                len(payload.UploadContext.files) if payload.UploadContext else 0
-            ),
-            "extractedCompanies": len(companies),
-        },
     }
 
     return LQERunResponse(runId=run_id, leads=leads, meta=meta)

@@ -15,3 +15,6 @@ uvicorn==0.38.0
 PyPDF2
 pandas
 openpyxl
+requests
+tldextract==5.1.2
+beautifulsoup4
