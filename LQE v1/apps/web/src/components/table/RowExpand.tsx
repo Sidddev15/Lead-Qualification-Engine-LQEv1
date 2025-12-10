@@ -8,7 +8,7 @@ export function RowExpand({ lead }: { lead: Lead }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="mt-2">
+    <div className="mt-2 text-black">
       <Button variant="outline" size="sm" onClick={() => setOpen(!open)}>
         {open ? "Hide details" : "Show details"}
       </Button>

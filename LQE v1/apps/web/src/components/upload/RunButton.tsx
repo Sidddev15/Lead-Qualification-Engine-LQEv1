@@ -1,4 +1,3 @@
-// apps/web/components/upload/RunButton.tsx
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,7 @@ interface Props {
   mode: "manual" | "pdf_zip" | "excel";
   manualCompanies: string;
   files: File[];
-  onResult: (data: any) => void;
+  onResult?: (data: any) => void;
 }
 
 export default function RunButton({
@@ -20,11 +19,6 @@ export default function RunButton({
 }: Props) {
   const mutation = useMutation({
     mutationFn: async () => {
-      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-      if (!baseUrl) {
-        throw new Error("NEXT_PUBLIC_API_BASE_URL is not set");
-      }
-
       const form = new FormData();
       form.append("inputMode", mode);
 
@@ -34,18 +28,26 @@ export default function RunButton({
         files.forEach((f) => form.append("files", f));
       }
 
-      const res = await api.post(`${baseUrl}/api/lqe/run`, form, {
+      const res = await api.post("/api/lqe/run", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       return res.data;
     },
-    onSuccess: (data) => onResult(data),
+    onSuccess: (data) => {
+      // Store results for /lqe/results page
+      localStorage.setItem("lqe_result", JSON.stringify(data));
+
+      // Allow preview on the current page
+      if (onResult) onResult(data);
+
+      // Redirect to results UI
+      window.location.href = "/lqe/results";
+    },
   });
 
   return (
     <Button
-      className="mt-4 rounded"
-      variant="outline"
+      className="border border-slate-400 rounded"
       disabled={mutation.isPending}
       onClick={() => mutation.mutate()}
     >
